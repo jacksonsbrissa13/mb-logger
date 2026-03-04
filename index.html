@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>MB Voice Logger</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --card: #1a1a2e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --green: #00c853;
+    --text: #eee;
+    --muted: #888;
+    --input-bg: #16213e;
+    --border: #2a2a4a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 12px;
+    padding-bottom: 100px;
+  }
+  h1 { font-size: 1.3rem; text-align: center; margin: 8px 0 12px; }
+  h1 span { color: var(--accent); }
+  .status {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+    min-height: 20px;
+  }
+  .status.connected { color: var(--green); }
+  .status.error { color: var(--accent); }
+  .mic-area { text-align: center; margin: 10px 0 16px; }
+  .mic-btn {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+    background: var(--card);
+    color: var(--accent);
+    font-size: 2.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .mic-btn.listening {
+    background: var(--accent);
+    color: white;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(233,69,96,0.4); }
+    50% { box-shadow: 0 0 0 18px rgba(233,69,96,0); }
+  }
+  .mic-btn:active { transform: scale(0.95); }
+  .transcript {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 14px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-height: 40px;
+    font-style: italic;
+    display: none;
+  }
+  .transcript.visible { display: block; }
+  .form-section {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  .form-section h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 1rem;
+    -webkit-appearance: none;
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 30px;
+  }
+  .field textarea { resize: vertical; min-height: 50px; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .checkbox-field input[type="checkbox"] {
+    width: 22px; height: 22px;
+    accent-color: var(--accent);
+  }
+  .checkbox-field label {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip {
+    padding: 6px 14px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.82rem;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chip.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .chip:active { transform: scale(0.95); }
+  .btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .btn {
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-submit { background: var(--green); color: #000; }
+  .btn-clear { background: var(--border); color: var(--text); }
+  .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+  .settings-toggle { text-align: center; margin-top: 14px; }
+  .settings-toggle button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .settings-panel {
+    display: none;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+    border: 1px solid var(--border);
+  }
+  .settings-panel.visible { display: block; }
+  .settings-panel h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .settings-panel .field input { font-size: 0.85rem; }
+  .settings-panel .btn-save {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    background: var(--accent2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .history { margin-top: 16px; }
+  .history h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .history-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-item .hi-left { flex: 1; }
+  .history-item .hi-type {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+  }
+  .history-item .hi-detail { color: var(--text); margin-top: 2px; }
+  .history-item .hi-time { color: var(--muted); font-size: 0.7rem; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--green);
+    color: #000;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: transform 0.3s;
+    z-index: 100;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--accent); color: white; }
+</style>
+</head>
+<body>
+<h1>🎤 <span>MB</span> Voice Logger</h1>
+<div class="status" id="status">Tap the mic and speak your bet</div>
+<div class="mic-area">
+  <button class="mic-btn" id="micBtn" onclick="toggleMic()">🎤</button>
+</div>
+<div class="transcript" id="transcript"></div>
+<div class="form-section">
+  <h2>Bet Details</h2>
+  <div class="field">
+    <label>Activity Type</label>
+    <div class="chips" id="activityChips">
+      <div class="chip" data-val="BONUS" onclick="selectChip(this,'activity')">Bonus</div>
+      <div class="chip" data-val="Promo" onclick="selectChip(this,'activity')">Promo</div>
+      <div class="chip" data-val="Non-Promo" onclick="selectChip(this,'activity')">Non-Promo</div>
+      <div class="chip" data-val="Deposit" onclick="selectChip(this,'activity')">Deposit</div>
+      <div class="chip" data-val="Bonus Credit" onclick="selectChip(this,'activity')">Bonus Credit</div>
+      <div class="chip" data-val="Withdrawal" onclick="selectChip(this,'activity')">Withdrawal</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Bookie</label>
+      <select id="bookie">
+        <option value="">-- Select --</option>
+        <option>Sportsbet</option><option>Tab</option><option>Pony Bet</option>
+        <option>Bet365</option><option>Ladbrokes</option><option>Mintbet</option>
+        <option>Playup</option><option>Bet Jet</option><option>Big Bet</option>
+        <option>Noisy</option><option>Yes Bet</option><option>Diamondbet</option>
+        <option>Neds</option><option>PointsBet</option><option>Unibet</option>
+        <option>BlueBet</option><option>BetRight</option><option>Palmerbet</option>
+        <option>TopSport</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Sport / Racing</label>
+      <div class="chips" id="sportChips">
+        <div class="chip" data-val="Sport" onclick="selectChip(this,'sport')">Sport</div>
+        <div class="chip" data-val="Racing" onclick="selectChip(this,'sport')">Racing</div>
+      </div>
+    </div>
+  </div>
+  <div class="checkbox-field">
+    <input type="checkbox" id="isSystem">
+    <label for="isSystem">System Bet</label>
+  </div>
+  <div class="field">
+    <label>Notes / Event</label>
+    <textarea id="notes" placeholder="e.g. Race 7 Flemington, NRL Storm vs Roosters"></textarea>
+  </div>
+</div>
+<div class="form-section">
+  <h2>Back Bet</h2>
+  <div class="row">
+    <div class="field">
+      <label>Stake ($)</label>
+      <input type="number" id="backStake" inputmode="decimal" step="0.01" placeholder="50.00">
+    </div>
+    <div class="field">
+      <label>Odds</label>
+      <input type="number" id="backOdds" inputmode="decimal" step="0.01" placeholder="5.25">
+    </div>
+  </div>
+</div>
+<div class="form-section">
+  <h2>Lay Bet <span style="color:var(--muted);font-size:0.7rem;text-transform:none;">(optional)</span></h2>
+  <div class="field">
+    <label>Lay Bookie</label>
+    <select id="layBookie">
+      <option value="">-- None --</option>
+      <option>Betfair</option><option>Tab</option><option>Sportsbet</option>
+      <option>Bet365</option><option>Ladbrokes</option><option>Pony Bet</option>
+      <option>Mintbet</option><option>Playup</option><option>Bet Jet</option>
+      <option>Big Bet</option><option>Noisy</option><option>Yes Bet</option>
+      <option>Diamondbet</option><option>Neds</option><option>PointsBet</option>
+      <option>Unibet</option><option>BlueBet</option><option>BetRight</option>
+      <option>Palmerbet</option><option>TopSport</option>
+    </select>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Lay Stake ($)</label>
+      <input type="number" id="layStake" inputmode="decimal" step="0.01" placeholder="185.00">
+    </div>
+    <div class="field">
+      <label>Lay Odds</label>
+      <input type="number" id="layOdds" inputmode="decimal" step="0.01" placeholder="1.16">
+    </div>
+  </div>
+  <div class="field">
+    <label>Commission ($)</label>
+    <input type="number" id="layComm" inputmode="decimal" step="0.01" placeholder="1.16">
+  </div>
+</div>
+<div class="btn-row">
+  <button class="btn btn-clear" onclick="clearForm()">Clear</button>
+  <button class="btn btn-submit" id="submitBtn" onclick="submitBet()">Submit ✓</button>
+</div>
+<div class="history" id="historySection" style="display:none;">
+  <h2>Recent Submissions</h2>
+  <div id="historyList"></div>
+</div>
+<div class="settings-toggle">
+  <button onclick="toggleSettings()">⚙️ Google Sheet Settings</button>
+</div>
+<div class="settings-panel" id="settingsPanel">
+  <h2>Google Sheets Connection</h2>
+  <div class="field">
+    <label>Apps Script Web App URL</label>
+    <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
+  </div>
+  <button class="btn-save" onclick="saveSettings()">Save & Test Connection</button>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let formData = { activity: '', sport: '' };
+
+function getScriptUrl() { return localStorage.getItem('mb_script_url') || ''; }
+
+function saveSettings() {
+  const url = document.getElementById('scriptUrl').value.trim();
+  if (!url) { showToast('Please enter a URL', true); return; }
+  localStorage.setItem('mb_script_url', url);
+  showToast('Settings saved!');
+  updateStatus();
+  testConnection(url);
+}
+
+function toggleSettings() {
+  const panel = document.getElementById('settingsPanel');
+  panel.classList.toggle('visible');
+  document.getElementById('scriptUrl').value = getScriptUrl();
+}
+
+function testConnection(url) {
+  fetch(url, { method: 'GET', mode: 'no-cors' })
+    .then(() => {
+      document.getElementById('status').textContent = '✓ Connected to Google Sheet';
+      document.getElementById('status').className = 'status connected';
+    })
+    .catch(() => {
+      document.getElementById('status').textContent = '✗ Could not reach script URL';
+      document.getElementById('status').className = 'status error';
+    });
+}
+
+function updateStatus() {
+  const url = getScriptUrl();
+  if (url) {
+    document.getElementById('status').textContent = '✓ Connected — tap mic to log a bet';
+    document.getElementById('status').className = 'status connected';
+  } else {
+    document.getElementById('status').textContent = 'Set up Google Sheet URL in ⚙️ Settings first';
+    document.getElementById('status').className = 'status';
+  }
+}
+
+function selectChip(el, field) {
+  const parent = el.parentElement;
+  parent.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  if (formData[field] === el.dataset.val) {
+    formData[field] = '';
+  } else {
+    el.classList.add('selected');
+    formData[field] = el.dataset.val;
+  }
+}
+
+function setChip(field, value) {
+  const chipsId = field + 'Chips';
+  const container = document.getElementById(chipsId);
+  if (!container) return;
+  container.querySelectorAll('.chip').forEach(c => {
+    if (c.dataset.val.toLowerCase() === value.toLowerCase()) {
+      c.classList.add('selected');
+      formData[field] = c.dataset.val;
+    }
+  });
+}
+
+let recognition = null;
+let isListening = false;
+
+function initSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('status').textContent = 'Speech recognition not supported';
+    document.getElementById('status').className = 'status error';
+    return false;
+  }
+  recognition = new SR();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-AU';
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    const el = document.getElementById('transcript');
+    el.textContent = '"' + transcript + '"';
+    el.classList.add('visible');
+    if (event.results[event.results.length - 1].isFinal) {
+      parseSpeech(transcript.trim());
+    }
+  };
+  recognition.onend = () => {
+    isListening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+  };
+  recognition.onerror = (event) => {
+    isListening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    if (event.error !== 'no-speech') showToast('Mic error: ' + event.error, true);
+  };
+  return true;
+}
+
+function toggleMic() {
+  if (!recognition && !initSpeech()) return;
+  if (isListening) {
+    recognition.stop();
+    isListening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+  } else {
+    try {
+      recognition.start();
+      isListening = true;
+      document.getElementById('micBtn').classList.add('listening');
+      document.getElementById('status').textContent = 'Listening...';
+      document.getElementById('status').className = 'status';
+    } catch (e) {
+      recognition.stop();
+      setTimeout(() => {
+        recognition.start();
+        isListening = true;
+        document.getElementById('micBtn').classList.add('listening');
+      }, 200);
+    }
+  }
+}
+function parseSpeech(text) {
+  const lower = text.toLowerCase();
+  const activityMap = {
+    'bonus bet': 'BONUS', 'bonus': 'BONUS',
+    'promo': 'Promo', 'promotion': 'Promo',
+    'non promo': 'Non-Promo', 'non-promo': 'Non-Promo', 'nonpromo': 'Non-Promo',
+    'deposit': 'Deposit', 'bonus credit': 'Bonus Credit',
+    'withdrawal': 'Withdrawal', 'withdraw': 'Withdrawal'
+  };
+  const activityKeys = Object.keys(activityMap).sort((a, b) => b.length - a.length);
+  for (const key of activityKeys) {
+    if (lower.includes(key)) { setChip('activity', activityMap[key]); break; }
+  }
+  const bookieNames = [
+    { patterns: ['sportsbet', 'sports bet'], value: 'Sportsbet' },
+    { patterns: ['pony bet', 'ponybet'], value: 'Pony Bet' },
+    { patterns: ['bet365', 'bet 365'], value: 'Bet365' },
+    { patterns: ['ladbrokes', 'lad broke', 'ladbrook'], value: 'Ladbrokes' },
+    { patterns: ['mintbet', 'mint bet'], value: 'Mintbet' },
+    { patterns: ['playup', 'play up'], value: 'Playup' },
+    { patterns: ['bet jet', 'betjet'], value: 'Bet Jet' },
+    { patterns: ['big bet', 'bigbet'], value: 'Big Bet' },
+    { patterns: ['noisy'], value: 'Noisy' },
+    { patterns: ['yes bet', 'yesbet'], value: 'Yes Bet' },
+    { patterns: ['diamondbet', 'diamond bet'], value: 'Diamondbet' },
+    { patterns: ['pointsbet', 'points bet'], value: 'PointsBet' },
+    { patterns: ['unibet', 'uni bet'], value: 'Unibet' },
+    { patterns: ['bluebet', 'blue bet'], value: 'BlueBet' },
+    { patterns: ['betright', 'bet right'], value: 'BetRight' },
+    { patterns: ['palmerbet', 'palmer bet'], value: 'Palmerbet' },
+    { patterns: ['topsport', 'top sport'], value: 'TopSport' },
+    { patterns: ['neds'], value: 'Neds' },
+    { patterns: ['tab'], value: 'Tab' },
+    { patterns: ['betfair', 'bet fair'], value: 'Betfair' },
+  ];
+  let firstBookiePos = Infinity, firstBookie = '';
+  let layBookieVal = '';
+  for (const b of bookieNames) {
+    for (const p of b.patterns) {
+      const idx = lower.indexOf(p);
+      if (idx !== -1 && idx < firstBookiePos) { firstBookiePos = idx; firstBookie = b.value; }
+    }
+  }
+  if (firstBookie) setSelectValue('bookie', firstBookie);
+  if (lower.includes('racing') || lower.includes('race ') || lower.includes('horse')) {
+    setChip('sport', 'Racing');
+  } else if (lower.includes('sport')) {
+    setChip('sport', 'Sport');
+  }
+  if (lower.includes('system')) document.getElementById('isSystem').checked = true;
+  const backPatterns = [
+    /\$?([\d.]+)\s*(?:dollars?\s+)?back\s+(?:at\s+)?\$?([\d.]+)/i,
+    /back\s+\$?([\d.]+)\s+(?:at\s+)?\$?([\d.]+)/i,
+    /\$?([\d.]+)\s+(?:at\s+)\$?([\d.]+)/i,
+  ];
+  for (const pat of backPatterns) {
+    const m = lower.match(pat);
+    if (m) {
+      document.getElementById('backStake').value = parseFloat(m[1]);
+      document.getElementById('backOdds').value = parseFloat(m[2]);
+      break;
+    }
+  }
+  if (!document.getElementById('backStake').value) {
+    const simpleAmount = lower.match(/\$\s*([\d.]+)/);
+    if (simpleAmount) document.getElementById('backStake').value = parseFloat(simpleAmount[1]);
+  }
+  const laySection = lower.indexOf('lay');
+  if (laySection !== -1) {
+    const afterLay = lower.substring(laySection);
+    for (const b of bookieNames) {
+      for (const p of b.patterns) {
+        if (afterLay.includes(p)) { layBookieVal = b.value; setSelectValue('layBookie', b.value); break; }
+      }
+      if (layBookieVal) break;
+    }
+    const layPatterns = [
+      /lay\s+(?:\w+\s+)?\$?([\d.]+)\s+(?:at\s+)?\$?([\d.]+)/i,
+      /lay\s+\$?([\d.]+)\s+(?:at\s+)?\$?([\d.]+)/i,
+    ];
+    for (const pat of layPatterns) {
+      const m = text.match(pat);
+      if (m) {
+        document.getElementById('layStake').value = parseFloat(m[1]);
+        document.getElementById('layOdds').value = parseFloat(m[2]);
+        break;
+      }
+    }
+  }
+  const commMatch = lower.match(/commission\s+\$?([\d.]+)/i) || lower.match(/comm\s+\$?([\d.]+)/i);
+  if (commMatch) document.getElementById('layComm').value = parseFloat(commMatch[1]);
+  let notes = text;
+  const removePatterns = [
+    /bonus\s*(bet|credit)?/gi, /promo(tion)?/gi, /non[-\s]?promo/gi,
+    /deposit/gi, /withdrawal?/gi, /\$?[\d.]+\s*(dollars?)?/gi,
+    /back\s*(at)?/gi, /lay\s*(at)?/gi,
+    /commission\s*(of)?/gi, /comm\s*/gi,
+    /sport\b/gi, /racing\b/gi, /system\b/gi,
+  ];
+  for (const b of bookieNames) {
+    for (const p of b.patterns) { notes = notes.replace(new RegExp(p, 'gi'), ''); }
+  }
+  for (const pat of removePatterns) { notes = notes.replace(pat, ''); }
+  notes = notes.replace(/\s+/g, ' ').trim();
+  if (notes.length > 2) document.getElementById('notes').value = notes;
+  updateStatus();
+}
+
+function setSelectValue(selectId, value) {
+  const sel = document.getElementById(selectId);
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value.toLowerCase() === value.toLowerCase() ||
+        sel.options[i].text.toLowerCase() === value.toLowerCase()) {
+      sel.selectedIndex = i; return;
+    }
+  }
+}
+async function submitBet() {
+  const url = getScriptUrl();
+  if (!url) { showToast('Set up Google Sheet URL first!', true); toggleSettings(); return; }
+  const data = {
+    date: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
+    activity: formData.activity,
+    bookie: document.getElementById('bookie').value,
+    sport: formData.sport,
+    isSystem: document.getElementById('isSystem').checked,
+    notes: document.getElementById('notes').value,
+    backStake: document.getElementById('backStake').value,
+    backOdds: document.getElementById('backOdds').value,
+    layBookie: document.getElementById('layBookie').value,
+    layStake: document.getElementById('layStake').value,
+    layOdds: document.getElementById('layOdds').value,
+    layComm: document.getElementById('layComm').value,
+  };
+  if (!data.activity) { showToast('Select an activity type', true); return; }
+  if (!data.bookie) { showToast('Select a bookie', true); return; }
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  try {
+    await fetch(url, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    showToast('Bet logged! ✓');
+    addToHistory(data);
+    clearForm();
+  } catch (err) {
+    showToast('Failed to send: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit ✓';
+  }
+}
+
+function addToHistory(data) {
+  let history = JSON.parse(localStorage.getItem('mb_history') || '[]');
+  history.unshift({ ...data, timestamp: new Date().toISOString() });
+  if (history.length > 20) history = history.slice(0, 20);
+  localStorage.setItem('mb_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('mb_history') || '[]');
+  const section = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+  if (history.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = history.slice(0, 5).map(h => {
+    const time = new Date(h.timestamp);
+    const timeStr = time.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    const stake = h.backStake ? ' $' + h.backStake : '';
+    const odds = h.backOdds ? ' @ ' + h.backOdds : '';
+    return '<div class="history-item"><div class="hi-left"><div class="hi-type">' + h.activity + ' — ' + h.bookie + '</div><div class="hi-detail">' + stake + odds + ' ' + (h.notes || '') + '</div></div><div class="hi-time">' + timeStr + '</div></div>';
+  }).join('');
+}
+
+function clearForm() {
+  formData = { activity: '', sport: '' };
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  document.getElementById('bookie').selectedIndex = 0;
+  document.getElementById('isSystem').checked = false;
+  document.getElementById('notes').value = '';
+  document.getElementById('backStake').value = '';
+  document.getElementById('backOdds').value = '';
+  document.getElementById('layBookie').selectedIndex = 0;
+  document.getElementById('layStake').value = '';
+  document.getElementById('layOdds').value = '';
+  document.getElementById('layComm').value = '';
+  document.getElementById('transcript').classList.remove('visible');
+  updateStatus();
+}
+
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => toast.className = 'toast', 2500);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateStatus();
+  renderHistory();
+  initSpeech();
+});
+</script>
+</body>
+</html>
